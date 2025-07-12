@@ -1,4 +1,4 @@
-.data # sqlite files
+.data
 .vscode
 
 go.sum

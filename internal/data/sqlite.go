@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"path/filepath"
 )
 
 type SQLite struct {
@@ -11,7 +12,7 @@ type SQLite struct {
 }
 
 func NewSQLite(ctx context.Context) (*SQLite, error) {
-	db, err := sql.Open("sqlite3", "../../.data/mocker.db")
+	db, err := sql.Open("sqlite3", filepath.Join(".data", "mocker.db"))
 	if err != nil {
 		return nil, fmt.Errorf("[func NewSQLite] has failed :: %w", err)
 	}
