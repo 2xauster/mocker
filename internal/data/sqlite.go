@@ -21,7 +21,3 @@ func NewSQLite(ctx context.Context) (*SQLite, error) {
 		DB: db,
 	}, nil 
 }	
-
-func (s *SQLite) Exit() error {
-	return s.DB.Close()
-}
