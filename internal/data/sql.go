@@ -27,8 +27,16 @@ type SQLUpdateArgs struct {
 	Where SQLWhereClause
 }
 
+// Data to perform "DELETE" operation in SQL.
 type SQLDeleteArgs struct {
 	Where SQLWhereClause 
+}
+
+// Data to perform "SELECT" operation in SQL.
+type SQLSelectArgs struct {
+	What []string // e.g: id, name, email, etc.
+	Where SQLWhereClause
+	Limit int // limit the amount of rows to fetch
 }
 
 func PrepareCreateTableStmt(name string, fields map[string]SQLField) string {
@@ -189,4 +197,19 @@ func Delete(ctx context.Context, db *sql.DB, tableName string, args SQLDeleteArg
 	}
 
 	return res, err
+}
+
+func SelectMany(ctx context.Context, db *sql.DB, tableName string, args SQLSelectArgs) (*sql.Rows, error) {
+	what := strings.Join(args.What, ", ")
+	where, whereValues, err := PrepareWhereClause(args.Where)
+	if err != nil {
+		return nil, fmt.Errorf("[pkg data : func Select] failed to prepare where clause :: %w", err)
+	}
+	
+	stmt := fmt.Sprintf(`SELECT %s FROM %s %s LIMIT %d;`, what, tableName, where, args.Limit)
+	rows, err := db.QueryContext(ctx, stmt, whereValues...)
+	if err != nil {
+		return nil, fmt.Errorf("[pkg data : func Select] query failed :: %w", err)
+	}
+	return rows, nil
 }

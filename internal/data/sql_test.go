@@ -17,15 +17,19 @@ import (
 
 func createTestDB() (*sql.DB, error) {
 	testDBPath := filepath.Join("..", "..", ".data", "unit_test.db")
-	_, err := os.Stat(testDBPath)
 
-	if err != nil {
-		if file, err := os.Create(testDBPath); err != nil {
-			file.Close()
-			return nil, err
-		}
+	if err := os.MkdirAll(filepath.Dir(testDBPath), os.ModePerm); err != nil {
 		return nil, err
 	}
+
+	if _, err := os.Stat(testDBPath); os.IsNotExist(err) {
+		file, err := os.Create(testDBPath)
+		if err != nil {
+			return nil, err
+		}
+		file.Close()
+	}
+
 	return sql.Open("sqlite3", testDBPath)
 }
 
@@ -69,7 +73,7 @@ func TestPrepareStatement(t *testing.T) {
 }
 
 func TestCreateTable(t *testing.T) {
-	db, err := sql.Open("sqlite3", filepath.Join("..", "..", ".data", "test.db"))
+	db, err := createTestDB()
 	if err != nil {
 		t.Fatal("failed to open db:", err)
 	}
@@ -277,5 +281,63 @@ func TestDelete(t *testing.T) {
 	err = db.QueryRow("SELECT id, name FROM deleteUsersTest WHERE id = ?", usedID).Scan(&id, &name)
 	if err != sql.ErrNoRows {
 		t.Fatalf("Found {[ID : %s] and [Name : %s]} - expected nothing", id, name)
+	}
+}
+
+func TestSelectMany(t *testing.T) {
+	db, err := createTestDB()
+	testTableName := "selectManyTest"
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = db.Exec(fmt.Sprintf(`
+	CREATE TABLE IF NOT EXISTS %s (
+	id TEXT PRIMARY KEY,
+	name TEXT NOT NULL
+	);
+	`, testTableName))
+	if err != nil {
+		t.Fatalf("failed to create testing table :: %v", err)
+	}
+	defer dropTestTable(db, testTableName)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	usedID, usedName := uuid.NewString(), "Ashton Is Such A Babe"
+
+	_, err = db.Exec(fmt.Sprintf("INSERT INTO %s(id, name) VALUES(?, ?);", testTableName), usedID, usedName)
+	if err != nil {
+		t.Fatalf("failed to insert data :: %v", err)
+	}
+	
+	rows, err := data.SelectMany(ctx, db, testTableName, data.SQLSelectArgs{
+		What: []string{"id", "name"},
+		Where: data.SQLWhereClause{
+			Condition: map[string]interface{}{"id":usedID, "name": usedName},
+			Operator: "AND",
+		},
+		Limit: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !rows.Next() {
+		t.Fatal("No rows obtained")
+	}
+	
+	for rows.Next() {
+		var (
+			id string 
+			name string 
+		)
+		rows.Scan(&id, &name)
+
+		if id != usedID && name != usedName {
+			t.Fatalf("Expected [ID : %s] and [Name : %s], but got [ID : %s] and [Name : %s]", usedID, usedName, id, name)
+		}
 	}
 }
