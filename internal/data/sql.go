@@ -13,6 +13,8 @@ type SQLWhereClause struct {
 	Operator  string // AND, OR (mandatory)
 }
 
+type SQLEntity interface {}
+
 /*
 * Data to perform "INSERT" operation in SQL.
  */
@@ -40,25 +42,31 @@ type SQLSelectArgs struct {
 }
 
 func PrepareCreateTableStmt(name string, fields map[string]SQLField) string {
-	stmt := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s" (`, name)
+	stmt := fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\" (\n", name)
 
 	fieldsSlice := make([]SQLField, 0, len(fields))
 	for _, v := range fields {
 		fieldsSlice = append(fieldsSlice, v)
 	}
 
-	for i := range fieldsSlice {
-		v := fieldsSlice[i]
-		constraints := v.Constraints
+	fieldLines := make([]string, 0, len(fieldsSlice))
+	foreignKeys := make([]string, 0)
 
-		stmt += fmt.Sprintf(`%s %s %s`, v.Name, v.Datatype, constraints)
+	for _, v := range fieldsSlice {
+		line := fmt.Sprintf(`%s %s %s`, v.Name, v.Datatype, v.Constraints)
 
-		if i < len(fieldsSlice)-1 {
-			stmt += ","
+		if v.Reference != "" {
+			foreignKeys = append(foreignKeys,
+				fmt.Sprintf(`FOREIGN KEY(%s) REFERENCES %s`, v.Name, v.Reference))
 		}
-		stmt += "\n"
+
+		fieldLines = append(fieldLines, line)
 	}
-	stmt += ");"
+
+	allLines := append(fieldLines, foreignKeys...)
+	stmt += strings.Join(allLines, ",\n")
+	stmt += "\n);"
+
 	return stmt
 }
 

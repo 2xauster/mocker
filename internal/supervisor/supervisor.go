@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"time"
 
 	"github.com/ashtonx86/mocker/internal/data"
@@ -26,22 +27,36 @@ func New(ctx context.Context) (*Supervisor, error) {
 
 	return &Supervisor{
 		SQLite: sqlite,
-	}, nil 
+	}, nil
 }
 
 func (su *Supervisor) Init() {
-	ctx, cancel := context.WithTimeout(context.Background(), 80 * time.Second)
-	defer cancel() 
-
-	su.initSQLite(ctx)
+	su.initSQLite()
 }
 
-func (su *Supervisor) initSQLite(ctx context.Context) {
-	var user entities.User
-	stmt, err := data.CreateTable(ctx, su.SQLite.DB, user)
+func (su *Supervisor) initSQLite() {
+	initialEntities := []data.SQLEntity{
+		entities.User{},
+		entities.Mock{},
+		entities.MockQuestion{},
+		entities.MockOption{},
+		entities.Session{},
+	}
 
-	slog.Info("Creating initial tables ", "stmt", stmt)
-	if err != nil {
-		panic(fmt.Errorf("[Supervisor.initSQLite] create initial tables failed :: %w", err))
+	for _, entity := range initialEntities {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 80 * time.Second)
+			defer cancel()
+
+			typ := reflect.TypeOf(entity)
+			slog.Info("Entity", "type", typ)
+
+			stmt, err := data.CreateTable(ctx, su.SQLite.DB, entity)
+			slog.Info("Creating table...", "stmt", stmt)
+
+			if err != nil {
+				slog.Error("Failed to create table", "error", err)
+			}
+		}()
 	}
 }
