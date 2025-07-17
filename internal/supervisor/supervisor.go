@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/ashtonx86/mocker/internal/data"
@@ -42,8 +43,11 @@ func (su *Supervisor) initSQLite() {
 		entities.MockOption{},
 		entities.Session{},
 	}
+	var wg sync.WaitGroup
 
 	for _, entity := range initialEntities {
+		wg.Add(1)
+
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 80 * time.Second)
 			defer cancel()
@@ -52,11 +56,14 @@ func (su *Supervisor) initSQLite() {
 			slog.Info("Entity", "type", typ)
 
 			stmt, err := data.CreateTable(ctx, su.SQLite.DB, entity)
-			slog.Info("Creating table...", "stmt", stmt)
+			slog.Info("Table created", "stmt", stmt)
 
 			if err != nil {
 				slog.Error("Failed to create table", "error", err)
-			}
+			} 
+			wg.Done()
 		}()
 	}
+
+	wg.Wait()
 }
