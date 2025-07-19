@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ashtonx86/mocker/internal/data"
+	"github.com/google/uuid"
 )
 
 type TestUserEntity struct {
@@ -14,7 +15,7 @@ type TestUserEntity struct {
 
 func TestExtractFields(t *testing.T) {
 	user := TestUserEntity{}
-	fields := data.ExtractFields(user)
+	fields := data.ExtractFields(user, false)
 	
 	if len(fields) != 2 {
 		t.Errorf("Length of TestUserEntity should have been 2, not %d", len(fields))
@@ -38,4 +39,21 @@ func TestExtractFields(t *testing.T) {
 	}
 
 	t.Log("-----------[END]---------------")
+}
+
+func TestExtractValueSlice(t *testing.T) {
+	usedID, usedName := uuid.NewString(), "Ashton Is A Slice"
+	user := TestUserEntity{
+		ID: usedID,
+		Name: usedName,
+	}
+	values := data.ExtractValueSlice(user)
+
+	if len(values) < 2 {
+		t.Errorf("Expected a slice of length 1, but got %d", len(values))
+	}
+	
+	if values[0] != usedID && values[1] != usedName {
+		t.Errorf("Values mismatch, expected [ID : %s] and [Name : %s] but got [any : %s] and [any : %s]", usedID, usedName, values[0], values[1])
+	}
 }

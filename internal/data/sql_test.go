@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ashtonx86/mocker/internal/data"
+	// "github.com/ashtonx86/mocker/internal/entities"
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -41,13 +42,13 @@ func dropTestTable(db *sql.DB, tableName string) {
 }
 
 func TestPrepareStatement(t *testing.T) {
-	fields := map[string]data.SQLField{
-		"ID": {
+	fields := []data.SQLField{
+		{
 			Name:        "ID",
 			Datatype:    "TEXT",
 			Constraints: "PRIMARY KEY UNIQUE NOT NULL",
 		},
-		"Name": {
+		{
 			Name:        "Name",
 			Datatype:    "TEXT",
 			Constraints: "NOT NULL",
@@ -114,7 +115,7 @@ func TestCreateTable(t *testing.T) {
 		foundCols = append(foundCols, name)
 	}
 
-	expected := []string{"ID", "Name"}
+	expected := []string{"id", "name"}
 	for _, col := range expected {
 		found := false
 		for _, actual := range foundCols {
@@ -136,26 +137,24 @@ func TestInsert(t *testing.T) {
 	}
 	defer db.Close()
 
-	_, err = db.Exec(`
-	CREATE TABLE IF NOT EXISTS insertUsersTest(
-		id TEXT PRIMARY KEY,
-		name TEXT NOT NULL
-	);
-	`)
-	if err != nil {
-		t.Fatalf("failed to create testing table :: %v", err)
-	}
-	defer dropTestTable(db, "insertUsersTest")
+	var entity TestUserEntity
 
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	usedID, usedName := uuid.NewString(), "Ashton Babe"
+	_, err = data.CreateTable(ctx, db, entity)
+	if err != nil {
+		t.Errorf("failed to create table :: %v", err)
+	}
+	defer dropTestTable(db, "testuserentity")
 
-	res, err := data.Insert(ctx, db, "insertUsersTest", data.SQLInsertArgs{
-		What:   []string{"id", "name"},
-		Values: []interface{}{usedID, usedName},
-	})
+	usedID, usedName := uuid.NewString(), "Ashton Babe"
+	user := TestUserEntity{
+		ID:   usedID,
+		Name: usedName,
+	}
+	res, err := data.Insert(ctx, db, user)
+
 	if err != nil {
 		t.Fatalf("insertion failed res=%v :: err=%v", res, err)
 	}
@@ -164,7 +163,7 @@ func TestInsert(t *testing.T) {
 		id   string
 		name string
 	)
-	err = db.QueryRow("SELECT id, name FROM insertUsersTest WHERE id = ?", usedID).Scan(&id, &name)
+	err = db.QueryRow("SELECT id, name FROM testuserentity WHERE id = ?", usedID).Scan(&id, &name)
 	if err == sql.ErrNoRows {
 		t.Fatalf("there are no rows with [ID : %s]", usedID)
 	} else if err != nil {
@@ -185,44 +184,44 @@ func TestUpdate(t *testing.T) {
 	}
 	defer db.Close()
 
-	_, err = db.Exec(`
-	CREATE TABLE IF NOT EXISTS updateUsersTest(
-		id TEXT PRIMARY KEY,
-		name TEXT NOT NULL
-	);
-	`)
-	if err != nil {
-		t.Fatalf("failed to create testing table :: %v", err)
-	}
-	defer dropTestTable(db, "updateUsersTest")
+	usedID, usedName := uuid.NewString(), "Ashton Is A Babe"
+	updateName := "Ashton Is Not A Babe"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	usedID, usedName := uuid.NewString(), "Ashton Is A Babe"
-	updateName := "Ashton Is Not A Babe"
+	user := TestUserEntity{
+		ID:   usedID,
+		Name: usedName,
+	}
+	_, err = data.CreateTable(ctx, db, user)
 
-	_, err = db.Exec("INSERT INTO updateUsersTest(id, name) VALUES(?, ?);", usedID, usedName)
+	if err != nil {
+		t.Fatalf("failed to create testing table :: %v", err)
+	}
+	defer dropTestTable(db, "testuserentity")
+
+	_, err = db.Exec("INSERT INTO testuserentity(id, name) VALUES(?, ?);", usedID, usedName)
 	if err != nil {
 		t.Fatalf("failed to insert data :: %v", err)
 	}
 
-	res, err := data.Update(ctx, db, "updateUsersTest", data.SQLUpdateArgs{
-		Set: map[string]interface{}{"name": updateName},
-		Where: data.SQLWhereClause{
-			Condition: map[string]interface{}{"id": usedID, "name": usedName},
-			Operator: "AND",
+	_, err = data.Update(ctx, db, TestUserEntity{
+		Name: updateName,
+	}, data.SQLWhereClause{
+		Where: TestUserEntity{
+			ID:   usedID,
+			Name: usedName,
 		},
 	})
 	if err != nil {
-		t.Fatalf("update failed res=%v :: err=%v", res, err)
+		t.Fatalf("Failed to update data :: %v", err)
 	}
-
 	var (
 		id   string
 		name string
 	)
-	err = db.QueryRow("SELECT id, name FROM updateUsersTest WHERE id = ?", usedID).Scan(&id, &name)
+	err = db.QueryRow("SELECT id, name FROM testuserentity WHERE id = ?", usedID).Scan(&id, &name)
 	if err == sql.ErrNoRows {
 		t.Fatalf("there are no rows with [ID : %s]", usedID)
 	} else if err != nil {
@@ -243,31 +242,27 @@ func TestDelete(t *testing.T) {
 	}
 	defer db.Close()
 
-	_, err = db.Exec(`
-	CREATE TABLE IF NOT EXISTS deleteUsersTest(
-		id TEXT PRIMARY KEY,
-		name TEXT NOT NULL
-	);
-	`)
-	if err != nil {
-		t.Fatalf("failed to create testing table :: %v", err)
-	}
-	defer dropTestTable(db, "deleteUsersTest")
-
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	usedID, usedName := uuid.NewString(), "Ashton Is Such A Babe"
+	usedID, usedName := uuid.NewString(), "Ashton The Loser"
 
-	_, err = db.Exec("INSERT INTO deleteUsersTest(id, name) VALUES(?, ?);", usedID, usedName)
+	user := TestUserEntity{}
+	_, err = data.CreateTable(ctx, db, user)
+	if err != nil {
+		t.Fatalf("failed to create testing table :: %v", err)
+	}
+	defer dropTestTable(db, "testuserentity")
+
+	_, err = db.Exec("INSERT INTO testuserentity(id, name) VALUES(?, ?);", usedID, usedName)
 	if err != nil {
 		t.Fatalf("failed to insert data :: %v", err)
 	}
-	
-	res, err := data.Delete(ctx, db, "deleteUsersTest", data.SQLDeleteArgs{
-		Where: data.SQLWhereClause{
-			Condition: map[string]interface{}{"id": usedID, "name": usedName},
-			Operator: "AND",
+
+	res, err := data.Delete(ctx, db, data.SQLWhereClause{
+		Where: TestUserEntity{
+			ID: usedID,
+			Name: usedName,
 		},
 	})
 	if err != nil {
@@ -278,7 +273,7 @@ func TestDelete(t *testing.T) {
 		id   string
 		name string
 	)
-	err = db.QueryRow("SELECT id, name FROM deleteUsersTest WHERE id = ?", usedID).Scan(&id, &name)
+	err = db.QueryRow("SELECT id, name FROM testuserentity WHERE id = ?", usedID).Scan(&id, &name)
 	if err != sql.ErrNoRows {
 		t.Fatalf("Found {[ID : %s] and [Name : %s]} - expected nothing", id, name)
 	}
@@ -286,38 +281,36 @@ func TestDelete(t *testing.T) {
 
 func TestSelectMany(t *testing.T) {
 	db, err := createTestDB()
-	testTableName := "selectManyTest"
+	testTableName := "testuserentity"
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = db.Exec(fmt.Sprintf(`
-	CREATE TABLE IF NOT EXISTS %s (
-	id TEXT PRIMARY KEY,
-	name TEXT NOT NULL
-	);
-	`, testTableName))
-	if err != nil {
-		t.Fatalf("failed to create testing table :: %v", err)
-	}
-	defer dropTestTable(db, testTableName)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	usedID, usedName := uuid.NewString(), "Ashton Is Such A Babe"
+	usedID, usedName := uuid.NewString(), "Ashton The Sloth"
+
+	user := TestUserEntity{}
+	_, err = data.CreateTable(ctx, db, user)
+	if err != nil {
+		t.Fatalf("failed to create testing table :: %v", err)
+	}
+	defer dropTestTable(db, "testuserentity")
 
 	_, err = db.Exec(fmt.Sprintf("INSERT INTO %s(id, name) VALUES(?, ?);", testTableName), usedID, usedName)
 	if err != nil {
 		t.Fatalf("failed to insert data :: %v", err)
 	}
-	
+
 	rows, err := data.SelectMany(ctx, db, testTableName, data.SQLSelectArgs{
 		What: []string{"id", "name"},
 		Where: data.SQLWhereClause{
-			Condition: map[string]interface{}{"id":usedID, "name": usedName},
-			Operator: "AND",
+			Where: TestUserEntity{
+				ID: usedID,
+				Name: usedName,
+			},
 		},
 		Limit: 1,
 	})
@@ -328,11 +321,11 @@ func TestSelectMany(t *testing.T) {
 	if !rows.Next() {
 		t.Fatal("No rows obtained")
 	}
-	
+
 	for rows.Next() {
 		var (
-			id string 
-			name string 
+			id   string
+			name string
 		)
 		rows.Scan(&id, &name)
 

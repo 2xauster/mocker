@@ -4,16 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 )
 
 type SQLWhereClause struct {
-	Condition map[string]interface{}
-	Operator  string // AND, OR (mandatory)
+	Where any
 }
 
-type SQLEntity interface {}
+type SQLEntity interface{}
 
 /*
 * Data to perform "INSERT" operation in SQL.
@@ -31,28 +31,23 @@ type SQLUpdateArgs struct {
 
 // Data to perform "DELETE" operation in SQL.
 type SQLDeleteArgs struct {
-	Where SQLWhereClause 
+	Where SQLWhereClause
 }
 
 // Data to perform "SELECT" operation in SQL.
 type SQLSelectArgs struct {
-	What []string // e.g: id, name, email, etc.
+	What  []string // e.g: id, name, email, etc.
 	Where SQLWhereClause
 	Limit int // limit the amount of rows to fetch
 }
 
-func PrepareCreateTableStmt(name string, fields map[string]SQLField) string {
+func PrepareCreateTableStmt(name string, fields []SQLField) string {
 	stmt := fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\" (\n", name)
 
-	fieldsSlice := make([]SQLField, 0, len(fields))
-	for _, v := range fields {
-		fieldsSlice = append(fieldsSlice, v)
-	}
-
-	fieldLines := make([]string, 0, len(fieldsSlice))
+	fieldLines := make([]string, 0, len(fields))
 	foreignKeys := make([]string, 0)
 
-	for _, v := range fieldsSlice {
+	for _, v := range fields {
 		line := fmt.Sprintf(`%s %s %s`, v.Name, v.Datatype, v.Constraints)
 
 		if v.Reference != "" {
@@ -70,21 +65,29 @@ func PrepareCreateTableStmt(name string, fields map[string]SQLField) string {
 	return stmt
 }
 
-func PrepareWhereClause(clause SQLWhereClause) (string, []interface{}, error) {
-	values := make([]interface{}, 0, len(clause.Condition))
+func PrepareWhereClause(clause SQLWhereClause) (string, []any, error) {
+	val := ExtractFields(clause.Where, true)
+	values := ExtractValueSlice(clause.Where)
 
-	whereParts := make([]string, 0, len(clause.Condition))
-	for k, v := range clause.Condition {
-		whereParts = append(whereParts, fmt.Sprintf(`%s=?`, k))
-		values = append(values, v)
+	whereParts := make([]string, 0, len(val))
+	for _, v := range val {
+		whereParts = append(whereParts, fmt.Sprintf(`%s=?`, v.Name))
 	}
-	op := strings.ToUpper(clause.Operator)
-	if op != "OR" && op != "AND" {
-		return "", []interface{}{}, fmt.Errorf("data.SQLWhereClause:Where:Operator should be AND / OR, not %s", op)
-	}
+
+	op := "AND"
 	where := "WHERE " + strings.Join(whereParts, " "+op+" ")
 
 	return where, values, nil
+}
+
+func PrepareWhat(fields []SQLField) string {
+	what := make([]string, len(fields))
+	for i, v := range fields {
+		name := strings.ToLower(v.Name)
+		what[i] = name
+	}
+
+	return strings.Join(what, ", ")
 }
 
 /*
@@ -97,9 +100,9 @@ func CreateTable[T interface{}](ctx context.Context, db *sql.DB, entity T) (stri
 	}
 
 	typ := reflect.TypeOf(entity)
-	name := typ.Name()
+	name := strings.ToLower(typ.Name())
 
-	fields := ExtractFields(entity)
+	fields := ExtractFields(entity, false)
 	if len(fields) <= 0 {
 		return "", fmt.Errorf("[func CreateTable] entity of generic type %T has no fields", entity)
 	}
@@ -117,56 +120,66 @@ func CreateTable[T interface{}](ctx context.Context, db *sql.DB, entity T) (stri
 	return stmt, nil
 }
 
-func Insert(ctx context.Context, db *sql.DB, tableName string, args SQLInsertArgs) (sql.Result, error) {
+func Insert[Entity any](ctx context.Context, db *sql.DB, entityData Entity) (sql.Result, error) {
+	var entity Entity
+	meta := ExtractMeta(entity, false)
+
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("[pkg data : func Insert] failed to begin transaction :: %w", err)
 	}
 	defer tx.Rollback()
 
-	what := strings.Join(args.What, ", ")
-	placeholders := make([]string, len(args.Values))
-	for i := range args.Values {
+	what := PrepareWhat(meta.Fields)
+	placeholders := make([]string, len(meta.Fields))
+	for i := range meta.Fields {
 		placeholders[i] = "?"
 	}
 
-	stmt := fmt.Sprintf(`INSERT INTO %s(%s) VALUES(%s);`, tableName, what, strings.Join(placeholders, ", "))
+	values := ExtractValueSlice(entityData)
 
-	res, err := tx.ExecContext(ctx, stmt, args.Values...)
+	stmt := fmt.Sprintf(`INSERT INTO %s(%s) VALUES(%s);`, meta.Name, what, strings.Join(placeholders, ", "))
+
+	res, err := tx.ExecContext(ctx, stmt, values...)
 
 	if err != nil {
 		return res, fmt.Errorf("[pkg data : func Insert] execution failed :: %w", err)
 	}
 
 	err = tx.Commit()
+	
 	if err != nil {
-		return  res, fmt.Errorf("[pkg data : func Insert] failed to commit :: %w", err)
+		return res, fmt.Errorf("[pkg data : func Insert] failed to commit :: %w", err)
 	}
 	return res, err
 }
 
-func Update(ctx context.Context, db *sql.DB, tableName string, args SQLUpdateArgs) (sql.Result, error) {
+func Update[Entity any](ctx context.Context, db *sql.DB, entityData Entity, where SQLWhereClause) (sql.Result, error) {
+	meta := ExtractMeta(entityData, true)
+
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("[pkg data : func Update] failed to begin transaction :: %w", err)
 	}
 	defer tx.Rollback()
 
-	setParts := make([]string, 0, len(args.Set))
-	values := make([]interface{}, 0, len(args.Set))
+	values := ExtractValueSlice(entityData)
+	setParts := make([]string, 0, len(meta.Fields))
 
-	for k, v := range args.Set {
-		setParts = append(setParts, fmt.Sprintf(`%s=?`, k))
-		values = append(values, v)
+	for _, v := range values {
+		slog.Info("Value", "val", v)
+	}
+	for _, v := range meta.Fields {
+		setParts = append(setParts, fmt.Sprintf("%s=?", v.Name))
 	}
 
-	where, whereVals, err := PrepareWhereClause(args.Where)
+	clause, whereVals, err := PrepareWhereClause(where)
 	if err != nil {
 		return nil, fmt.Errorf("[pkg data : func Update] where clause preparation failed :: %w", err)
 	}
 	values = append(values, whereVals...)
 
-	stmt := fmt.Sprintf(`UPDATE %s SET %s %s`, tableName, strings.Join(setParts, ", "), where)
+	stmt := fmt.Sprintf(`UPDATE %s SET %s %s`, meta.Name, strings.Join(setParts, ", "), clause)
 
 	res, err := tx.ExecContext(ctx, stmt, values...)
 	if err != nil {
@@ -181,19 +194,21 @@ func Update(ctx context.Context, db *sql.DB, tableName string, args SQLUpdateArg
 	return res, err
 }
 
-func Delete(ctx context.Context, db *sql.DB, tableName string, args SQLDeleteArgs) (sql.Result, error) {
+func Delete(ctx context.Context, db *sql.DB, where SQLWhereClause) (sql.Result, error) {	
+	meta := ExtractMeta(where.Where, false)
+
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("[pkg data : func Delete] failed to begin transaction :: %w", err)
 	}
 	defer tx.Rollback()
-	
-	where, values, err := PrepareWhereClause(args.Where)
+
+	clause, values, err := PrepareWhereClause(where)
 	if err != nil {
 		return nil, fmt.Errorf("[pkg data : func Delete] preparation of where clause failed :: %w", err)
 	}
 
-	stmt := fmt.Sprintf(`DELETE FROM %s %s`, tableName, where)
+	stmt := fmt.Sprintf(`DELETE FROM %s %s`, meta.Name, clause)
 	res, err := tx.ExecContext(ctx, stmt, values...)
 	if err != nil {
 		return res, fmt.Errorf("[pkg data : func Delete] execution failed :: %w", err)
@@ -213,7 +228,12 @@ func SelectMany(ctx context.Context, db *sql.DB, tableName string, args SQLSelec
 	if err != nil {
 		return nil, fmt.Errorf("[pkg data : func Select] failed to prepare where clause :: %w", err)
 	}
-	
+
+	// Minimum limit is 10, ofcourse.
+	if args.Limit == 0{
+		args.Limit = 10
+	}
+
 	stmt := fmt.Sprintf(`SELECT %s FROM %s %s LIMIT %d;`, what, tableName, where, args.Limit)
 	rows, err := db.QueryContext(ctx, stmt, whereValues...)
 	if err != nil {
