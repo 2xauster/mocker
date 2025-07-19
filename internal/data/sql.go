@@ -147,6 +147,7 @@ func Insert[Entity any](ctx context.Context, db *sql.DB, entityData Entity) (sql
 	}
 
 	err = tx.Commit()
+	err = SugarifyErrors(err)
 	
 	if err != nil {
 		return res, fmt.Errorf("[pkg data : func Insert] failed to commit :: %w", err)

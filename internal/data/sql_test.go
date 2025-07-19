@@ -3,6 +3,7 @@ package data_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -153,10 +154,12 @@ func TestInsert(t *testing.T) {
 		ID:   usedID,
 		Name: usedName,
 	}
-	res, err := data.Insert(ctx, db, user)
+	_, err = data.Insert(ctx, db, user)
 
-	if err != nil {
-		t.Fatalf("insertion failed res=%v :: err=%v", res, err)
+	if err != nil && errors.Is(err, data.SQLError{Code: data.ErrAlreadyExists}) {
+		t.Fatalf("insertion failed, record :: already exists :: %v", err)
+	} else if err != nil {
+		t.Fatalf("insertion failed :; %v", err)
 	}
 
 	var (
