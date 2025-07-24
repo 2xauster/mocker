@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ashtonx86/mocker/internal/data"
+	"github.com/ashtonx86/mocker/internal/errs"
 	// "github.com/ashtonx86/mocker/internal/entities"
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
@@ -156,7 +157,7 @@ func TestInsert(t *testing.T) {
 	}
 	_, err = data.Insert(ctx, db, user)
 
-	if err != nil && errors.Is(err, data.SQLError{Code: data.ErrAlreadyExists}) {
+	if err != nil && errors.Is(err, errs.Error{Code: errs.ErrAlreadyExists, Type: errs.SQLErrorType.String()}) {
 		t.Fatalf("insertion failed, record :: already exists :: %v", err)
 	} else if err != nil {
 		t.Fatalf("insertion failed :; %v", err)

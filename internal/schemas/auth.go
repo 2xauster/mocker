@@ -6,19 +6,19 @@ type PublicUserSchema struct {
 }
 
 type UserCreateRequest struct {
-	Name string `json:"name"`
-	Email string `json:"email"`
-	Password string `json:"password"`
-	ConfirmPassword string `json:"confirm_password"`
+	Name string `json:"name" validate:"required,min=1,max=45"`
+	Email string `json:"email" validate:"required,min=1,email"`
+	Password string `json:"password" validate:"required,min=14"`
+	ConfirmPassword string `json:"confirm_password" validate:"required,min=14"`
 }
 
 type UserAuthenticateRequest struct {
-	Email string `json:"email"`
-	Password string `json:"password"`
+	Email string `json:"email" validate:"required,min=1,email"`
+	Password string `json:"password" validate:"required,min=14"`
 }
 
 type UserAuthorizationRequest struct {
-	AccessToken string `json:"access_token"`
+	AccessToken string `json:"access_token" validate:"required"`
 }
 
 type UserAuthenticateResponse struct {

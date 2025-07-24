@@ -15,25 +15,6 @@ type SQLWhereClause struct {
 
 type SQLEntity interface{}
 
-/*
-* Data to perform "INSERT" operation in SQL.
- */
-type SQLInsertArgs struct {
-	What   []string
-	Values []interface{}
-}
-
-// Data to perform "UPDATE" operation in SQL.
-type SQLUpdateArgs struct {
-	Set   map[string]interface{}
-	Where SQLWhereClause
-}
-
-// Data to perform "DELETE" operation in SQL.
-type SQLDeleteArgs struct {
-	Where SQLWhereClause
-}
-
 // Data to perform "SELECT" operation in SQL.
 type SQLSelectArgs struct {
 	What  []string // e.g: id, name, email, etc.
@@ -141,13 +122,14 @@ func Insert[Entity any](ctx context.Context, db *sql.DB, entityData Entity) (sql
 	stmt := fmt.Sprintf(`INSERT INTO %s(%s) VALUES(%s);`, meta.Name, what, strings.Join(placeholders, ", "))
 
 	res, err := tx.ExecContext(ctx, stmt, values...)
-
+	err = SQLiteErrorComparator(err)
+	
 	if err != nil {
 		return res, fmt.Errorf("[pkg data : func Insert] execution failed :: %w", err)
 	}
 
 	err = tx.Commit()
-	err = SugarifyErrors(err)
+	err = SQLiteErrorComparator(err)
 	
 	if err != nil {
 		return res, fmt.Errorf("[pkg data : func Insert] failed to commit :: %w", err)
@@ -183,11 +165,13 @@ func Update[Entity any](ctx context.Context, db *sql.DB, entityData Entity, wher
 	stmt := fmt.Sprintf(`UPDATE %s SET %s %s`, meta.Name, strings.Join(setParts, ", "), clause)
 
 	res, err := tx.ExecContext(ctx, stmt, values...)
+	err = SQLiteErrorComparator(err)
 	if err != nil {
 		return res, fmt.Errorf("[pkg data : func Update] execution failed :: %w", err)
 	}
 
 	err = tx.Commit()
+	err = SQLiteErrorComparator(err)
 	if err != nil {
 		return res, fmt.Errorf("[pkg data : func Update] commit failed :: %w", err)
 	}
@@ -211,11 +195,13 @@ func Delete(ctx context.Context, db *sql.DB, where SQLWhereClause) (sql.Result, 
 
 	stmt := fmt.Sprintf(`DELETE FROM %s %s`, meta.Name, clause)
 	res, err := tx.ExecContext(ctx, stmt, values...)
+	err = SQLiteErrorComparator(err)
 	if err != nil {
 		return res, fmt.Errorf("[pkg data : func Delete] execution failed :: %w", err)
 	}
 
 	err = tx.Commit()
+	err = SQLiteErrorComparator(err)
 	if err != nil {
 		return res, fmt.Errorf("[pkg data : func Delete] commit failed :: %w", err)
 	}
@@ -237,6 +223,8 @@ func SelectMany(ctx context.Context, db *sql.DB, tableName string, args SQLSelec
 
 	stmt := fmt.Sprintf(`SELECT %s FROM %s %s LIMIT %d;`, what, tableName, where, args.Limit)
 	rows, err := db.QueryContext(ctx, stmt, whereValues...)
+	err = SQLiteErrorComparator(err)
+	
 	if err != nil {
 		return nil, fmt.Errorf("[pkg data : func Select] query failed :: %w", err)
 	}
