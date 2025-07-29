@@ -11,6 +11,7 @@ type SQLField struct {
 	Datatype    string
 	Constraints string
 	Reference   string // e.g., "Users(ID)" or "Authors(id)"
+	Value 		any    // Optional
 }
 
 type EntityMetadata struct {
@@ -49,6 +50,7 @@ func ExtractFields[T any](entity T, zeroValidation bool) []SQLField {
 			Datatype:    datatypeTag,
 			Constraints: constraintsTag,
 			Reference:   referenceTag,
+			Value: val.Field(i).Interface(),
 		})
 	}
 	return fields

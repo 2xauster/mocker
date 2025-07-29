@@ -17,7 +17,6 @@ type SQLEntity interface{}
 
 // Data to perform "SELECT" operation in SQL.
 type SQLSelectArgs struct {
-	What  []string // e.g: id, name, email, etc.
 	Where SQLWhereClause
 	Limit int // limit the amount of rows to fetch
 }
@@ -123,14 +122,14 @@ func Insert[Entity any](ctx context.Context, db *sql.DB, entityData Entity) (sql
 
 	res, err := tx.ExecContext(ctx, stmt, values...)
 	err = SQLiteErrorComparator(err)
-	
+
 	if err != nil {
 		return res, fmt.Errorf("[pkg data : func Insert] execution failed :: %w", err)
 	}
 
 	err = tx.Commit()
 	err = SQLiteErrorComparator(err)
-	
+
 	if err != nil {
 		return res, fmt.Errorf("[pkg data : func Insert] failed to commit :: %w", err)
 	}
@@ -179,7 +178,7 @@ func Update[Entity any](ctx context.Context, db *sql.DB, entityData Entity, wher
 	return res, err
 }
 
-func Delete(ctx context.Context, db *sql.DB, where SQLWhereClause) (sql.Result, error) {	
+func Delete(ctx context.Context, db *sql.DB, where SQLWhereClause) (sql.Result, error) {
 	meta := ExtractMeta(where.Where, false)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -207,26 +206,4 @@ func Delete(ctx context.Context, db *sql.DB, where SQLWhereClause) (sql.Result, 
 	}
 
 	return res, err
-}
-
-func SelectMany(ctx context.Context, db *sql.DB, tableName string, args SQLSelectArgs) (*sql.Rows, error) {
-	what := strings.Join(args.What, ", ")
-	where, whereValues, err := PrepareWhereClause(args.Where)
-	if err != nil {
-		return nil, fmt.Errorf("[pkg data : func Select] failed to prepare where clause :: %w", err)
-	}
-
-	// Minimum limit is 10, ofcourse.
-	if args.Limit == 0{
-		args.Limit = 10
-	}
-
-	stmt := fmt.Sprintf(`SELECT %s FROM %s %s LIMIT %d;`, what, tableName, where, args.Limit)
-	rows, err := db.QueryContext(ctx, stmt, whereValues...)
-	err = SQLiteErrorComparator(err)
-	
-	if err != nil {
-		return nil, fmt.Errorf("[pkg data : func Select] query failed :: %w", err)
-	}
-	return rows, nil
 }

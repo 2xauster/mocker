@@ -37,7 +37,38 @@ func (h *AuthHandler) MapRoutes(router *fiber.Group) {
 }
 
 func (h *AuthHandler) handleGET(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusOK).JSON(schemas.NewAPIResponse(true, "Hello world!", ""))
+	req := new(schemas.UserFetchRequest)
+	c.BodyParser(&req)
+
+	err := errs.Validate(req)
+
+	if err != nil && errors.Is(err, errs.Error{Code: errs.ErrDataIllegal, Type: errs.DataErrorType.String()}) {
+		return c.Status(fiber.StatusBadRequest).JSON(schemas.NewErrorAPIResponse(err, "Bad request"))
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	user, err := auth.GetUser(ctx, h.SQLite.DB, *req)
+	if err != nil {
+		var e errs.Error
+		if errors.As(err, &e) {
+			slog.Error("[pkg handlers : auth.go : func handleGET] User creation failed ", "error", err)
+
+			switch e.Code {
+			case errs.ErrAlreadyExists:
+				return c.Status(fiber.StatusForbidden).JSON(schemas.NewErrorAPIResponse(err, "Already exists"))
+			case errs.ErrDataMismatch:
+				return c.Status(fiber.StatusBadRequest).JSON(schemas.NewErrorAPIResponse(err, "Data mismatch"))
+			case errs.ErrInternalFailure:
+				return c.Status(fiber.StatusInternalServerError).JSON(schemas.NewErrorAPIResponse(err, "Internal failure"))
+			}
+		}
+	}
+	return c.JSON(schemas.NewAPIResponse(true, schemas.PublicUserSchema{
+		Name: user.Name,
+		ID: user.ID,
+	}, ""))
 }
 
 func (h *AuthHandler) handlePOST(c *fiber.Ctx) error {
