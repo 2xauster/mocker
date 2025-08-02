@@ -17,10 +17,11 @@ type ErrorType int
 const (
 	SQLErrorType  ErrorType = iota // This is for SQL related errors.
 	DataErrorType                  // DataErrorType is a general error type.
+	JWTErrorType 				   
 )
 
 func (et ErrorType) String() string {
-	return [...]string{"SQLErrorType", "DataErrorType"}[et]
+	return [...]string{"SQLErrorType", "DataErrorType", "JWTErrorType"}[et]
 }
 
 type Error struct {

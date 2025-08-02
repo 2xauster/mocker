@@ -9,7 +9,10 @@ import (
 )
 
 func SQLiteErrorComparator(err error) error {
-	if err == sql.ErrNoRows {
+	if err == nil {
+		return err
+	}
+	if errors.Is(err, sql.ErrNoRows) {
 		return errs.NewError(err, errs.SQLErrorType, errs.ErrNotFound)
 	}
 	

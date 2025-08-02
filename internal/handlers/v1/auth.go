@@ -14,6 +14,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+const TIMEOUT = 40 * time.Second
+
 // assert: AuthHandler implements Handler interface.
 var _ Handler = (*AuthHandler)(nil)
 
@@ -46,7 +48,7 @@ func (h *AuthHandler) handleGET(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(schemas.NewErrorAPIResponse(err, "Bad request"))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
 	defer cancel()
 
 	user, err := auth.GetUser(ctx, h.SQLite.DB, *req)
@@ -62,6 +64,8 @@ func (h *AuthHandler) handleGET(c *fiber.Ctx) error {
 				return c.Status(fiber.StatusBadRequest).JSON(schemas.NewErrorAPIResponse(err, "Data mismatch"))
 			case errs.ErrInternalFailure:
 				return c.Status(fiber.StatusInternalServerError).JSON(schemas.NewErrorAPIResponse(err, "Internal failure"))
+			case errs.ErrNotFound:
+				return c.Status(fiber.StatusNotFound).JSON(schemas.NewErrorAPIResponse(err, "Not found"))
 			}
 		}
 	}
@@ -81,7 +85,7 @@ func (h *AuthHandler) handlePOST(c *fiber.Ctx) error {
 		return c.Status(403).JSON(schemas.NewErrorAPIResponse(err, "Bad request"))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
 	defer cancel()
 
 	user, err := auth.CreateUser(ctx, h.SQLite.DB, *req)
@@ -104,4 +108,54 @@ func (h *AuthHandler) handlePOST(c *fiber.Ctx) error {
 		ID: user.ID,
 		Name: user.Name,
 	}, ""))
+}
+
+func (h *AuthHandler) handleGETAccessToken(c *fiber.Ctx) error {
+	req := new(schemas.UserAuthenticateRequest)
+	c.BodyParser(&req)
+
+	err := errs.Validate(req)
+
+	if err != nil && errors.Is(err, errs.Error{Code: errs.ErrDataIllegal, Type: errs.DataErrorType.String()}) {
+		return c.Status(403).JSON(schemas.NewErrorAPIResponse(err, "Bad request"))
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
+	defer cancel()
+
+	user, err := auth.GetUser(ctx, h.SQLite.DB, schemas.UserFetchRequest{
+		Email: req.Email,
+	})
+	if err != nil {
+		var e errs.Error
+		if errors.As(err, &e) {
+			slog.Error("[pkg handlers : auth.go : func handlePOST] User creation failed ", "error", err)
+
+			switch e.Code {
+			case errs.ErrAlreadyExists:
+				return c.Status(fiber.StatusForbidden).JSON(schemas.NewErrorAPIResponse(err, "Already exists"))
+			case errs.ErrDataMismatch:
+				return c.Status(fiber.StatusBadRequest).JSON(schemas.NewErrorAPIResponse(err, "Data mismatch"))
+			case errs.ErrInternalFailure:
+				return c.Status(fiber.StatusInternalServerError).JSON(schemas.NewErrorAPIResponse(err, "Internal failure"))
+			}
+		}
+	}
+
+	token, err := auth.GenerateJWT(user.ID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(schemas.NewErrorAPIResponse(err, "Internal server error"))
+	}
+
+	res := schemas.UserAuthenticateResponse{
+		User: schemas.PublicUserSchema{
+			ID: user.ID,
+			Email: user.Email,
+
+			CreatedAt: user.CreatedAt,
+			LastUpdatedAt: user.LastUpdatedAt,
+		},
+		AccessToken: token,
+	}
+	return c.JSON(schemas.NewAPIResponse(true, res, ""))
 }

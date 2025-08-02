@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/ashtonx86/mocker/internal/errs"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -38,17 +39,17 @@ func VerifyJWT(token string) (*jwt.Token, jwt.MapClaims, error) {
 
 	t, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("[pkg auth func VerifyJWT] unexpected signing method: %v", t.Header["alg"])
+			return nil, errs.NewError(fmt.Errorf("[pkg auth func VerifyJWT] unexpected signing method: %v", t.Header["alg"]), errs.JWTErrorType, errs.ErrDataIllegal)
 		}
-		return secretKey, nil 
+		return secretKey, nil
 	})
 
 	if err != nil {
-		return nil, nil, err 
+		return nil, nil, err
 	}
 
 	if claims, ok := t.Claims.(jwt.MapClaims); ok && t.Valid {
 		return t, claims, nil
 	}
-	return nil, nil, fmt.Errorf("unexpected token")
+	return nil, nil, errs.NewError(fmt.Errorf("unexpected token"), errs.JWTErrorType, errs.ErrNotFound)
 }

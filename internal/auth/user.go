@@ -19,7 +19,7 @@ import (
 func CreateUser(ctx context.Context, db *sql.DB, userData schemas.UserCreateRequest) (*entities.User, error) {
 	if userData.Password != userData.ConfirmPassword {
 		return nil, errs.NewError(errors.New("data mismatch: Password != ConfirmPassword"), errs.DataErrorType, errs.ErrDataMismatch)
-	}	
+	}
 
 	// bcrypt.DefaultCost = 10
 	bytes, err := bcrypt.GenerateFromPassword([]byte(userData.Password), bcrypt.DefaultCost)
@@ -56,7 +56,7 @@ func GetUser(ctx context.Context, db *sql.DB, req schemas.UserFetchRequest) (*en
 	if req.ID != "" {
 		query += "id = ?"
 		identifier = req.ID
-	} else if  req.Email != "" {
+	} else if req.Email != "" {
 		query += "email = ?"
 		identifier = req.Email
 	} else {
@@ -66,10 +66,10 @@ func GetUser(ctx context.Context, db *sql.DB, req schemas.UserFetchRequest) (*en
 	row := db.QueryRowContext(ctx, query, identifier)
 
 	var (
-		id string
-		name string 
-		email string 
-		passwordHash string 
+		id           string
+		name         string
+		email        string
+		passwordHash string
 
 		createdAt time.Time
 		updatedAt time.Time
@@ -77,20 +77,26 @@ func GetUser(ctx context.Context, db *sql.DB, req schemas.UserFetchRequest) (*en
 	err := row.Scan(&id, &name, &email, &passwordHash, &createdAt, &updatedAt)
 	err = data.SQLiteErrorComparator(err)
 
-	if err != nil && errors.Is(err, errs.Error{Type: errs.SQLErrorType.String()}) {
-		return nil, errs.NewError(fmt.Errorf("failed to fetch :: %w", err), errs.DataErrorType, errs.ErrInternalFailure)
+	var e errs.Error
+	if err != nil{
+		switch e.Code {
+		case errs.ErrInternalFailure:
+			return nil, errs.NewError(fmt.Errorf("failed to fetch :: %w", err), errs.DataErrorType, errs.ErrInternalFailure)
+		case errs.ErrNotFound:
+			return nil, errs.NewError(fmt.Errorf("record not found :: %w", err), errs.DataErrorType, errs.ErrNotFound)
+		}
+		return nil, err
 	}
 
-
 	user := entities.User{
-		ID: id,
-		Name: name,
-		Email: email,
+		ID:           id,
+		Name:         name,
+		Email:        email,
 		PasswordHash: passwordHash,
 
-		CreatedAt: createdAt,
+		CreatedAt:     createdAt,
 		LastUpdatedAt: updatedAt,
 	}
 
 	return &user, nil
-} 
+}
