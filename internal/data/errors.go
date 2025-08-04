@@ -6,6 +6,7 @@ import (
 
 	"github.com/ashtonx86/mocker/internal/errs"
 	"github.com/mattn/go-sqlite3"
+	"github.com/redis/go-redis/v9"
 )
 
 func SQLiteErrorComparator(err error) error {
@@ -27,4 +28,21 @@ func SQLiteErrorComparator(err error) error {
 	default:
 		return err
 	}
+}
+
+func RedisErrorComparator(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, redis.Nil) {
+		return errs.NewError(err, errs.RedisErrorType, errs.ErrNotFound)
+	}
+
+	var redisErr redis.Error
+	if errors.As(err, &redisErr) {
+		return errs.NewError(err, errs.RedisErrorType, errs.ErrUndefined)
+	}
+
+	return err
 }

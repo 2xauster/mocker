@@ -10,6 +10,7 @@ const (
 	ErrDataMismatch // (x1, x2) -> x1 != x2
 	ErrDataIllegal  // Data that violates the schema.
 	ErrInternalFailure
+	ErrUndefined 	// Errors that have not been explicitly defined in this codebase.
 )
 
 type ErrorType int
@@ -17,11 +18,12 @@ type ErrorType int
 const (
 	SQLErrorType  ErrorType = iota // This is for SQL related errors.
 	DataErrorType                  // DataErrorType is a general error type.
-	JWTErrorType 				   
+	JWTErrorType 
+	RedisErrorType				   
 )
 
 func (et ErrorType) String() string {
-	return [...]string{"SQLErrorType", "DataErrorType", "JWTErrorType"}[et]
+	return [...]string{"sql_error", "data_error", "jwt_error", "redis_error"}[et]
 }
 
 type Error struct {
