@@ -36,6 +36,8 @@ func NewAuthHandler(su *supervisor.Supervisor) *AuthHandler {
 func (h *AuthHandler) MapRoutes(router *fiber.Group) {
 	router.Get("/", h.handleGET)
 	router.Post("/", h.handlePOST)
+
+	router.Post("/access-token", h.handleGETAccessToken)
 }
 
 func (h *AuthHandler) handleGET(c *fiber.Ctx) error {
