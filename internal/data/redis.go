@@ -51,8 +51,8 @@ func HSet[Entity any](ctx context.Context, client *redis.Client, id string, enti
 	return res, nil
 }
 
-func HGet[Entity any](ctx context.Context, client *redis.Client, id string, dest *Entity) (map[string]string, error) {
-	meta := ExtractMeta(*dest, false)
+func HGet[Entity any](ctx context.Context, client *redis.Client, id string, entity Entity) (map[string]string, error) {
+	meta := ExtractMeta(entity, false)
 	if meta.Name == "" {
 		return nil, MissingEntityNameError
 	}

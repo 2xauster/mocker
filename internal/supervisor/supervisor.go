@@ -41,7 +41,6 @@ func (su *Supervisor) initSQLite() {
 		entities.Mock{},
 		entities.MockQuestion{},
 		entities.MockOption{},
-		entities.Session{},
 	}
 	var wg sync.WaitGroup
 
