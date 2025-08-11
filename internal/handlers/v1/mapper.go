@@ -10,4 +10,7 @@ func MapV1Handlers(app *fiber.App, su *supervisor.Supervisor) {
 
 	authHandler := NewAuthHandler(su)
 	authHandler.MapRoutes(router.Group("/auth").(*fiber.Group))
+
+	mockHandler := NewMockHandler(su)
+	mockHandler.MapRoutes(router.Group("/mock").(*fiber.Group))
 }

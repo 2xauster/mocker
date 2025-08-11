@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
 	"time"
 
 	"github.com/ashtonx86/mocker/internal/data"
@@ -13,6 +14,7 @@ import (
 	"github.com/ashtonx86/mocker/internal/schemas"
 	"github.com/google/uuid"
 )
+
 func CreateMock(ctx context.Context, db *sql.DB, mockData schemas.MockCreateRequest) (*entities.Mock, error) {
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

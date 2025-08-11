@@ -12,6 +12,8 @@ import (
 
 var ProtectedRoutes = []string{
 	"/api/v1/auth/protected",
+
+	"/api/v1/mock",
 }
 
 type WebServer struct {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ashtonx86/mocker/internal/errs"
+	"github.com/ashtonx86/mocker/internal/logging"
 	"github.com/ashtonx86/mocker/internal/schemas"
 	"github.com/gofiber/fiber/v2"
 )
@@ -77,9 +78,9 @@ func New(config Config) fiber.Handler {
 
 	return func(c *fiber.Ctx) error {
 		if len(cfg.Include) > 0 && !isPathIncluded(c.Path(), cfg.CompiledInclude) {
-			slog.Info("Auth middleware skipped", "path", c.Path())
 			return c.Next()
 		}
+		logging.Log(slog.LevelInfo, c, "Requiring authorization")
 
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
@@ -96,11 +97,14 @@ func New(config Config) fiber.Handler {
 		if err != nil && errors.As(err, &jwtErr) {
 			return c.Status(fiber.StatusUnauthorized).JSON(schemas.NewErrorAPIResponse(err, "Unauthorized"))
 		}
+		if t == nil {
+			return cfg.Unauthorized(c)
+		}	
 		if !t.Valid {
 			return cfg.Unauthorized(c)
 		}
 
-		id, ok := claims["id"].(string)
+		id, ok := claims["sub"].(string)
 		if !ok {
 			return c.Status(fiber.StatusInternalServerError).JSON(schemas.NewErrorAPIResponse(
 				errors.New("missing 'id' in token claims"),
@@ -120,7 +124,7 @@ func New(config Config) fiber.Handler {
 			return c.Status(fiber.StatusInternalServerError).JSON(schemas.NewErrorAPIResponse(err, "Failed to fetch user"))
 		}
 
-		c.Locals("user", user)
+		c.Locals("user", &user)
 		return c.Next()
 	}
 }

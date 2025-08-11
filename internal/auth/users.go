@@ -5,16 +5,29 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/ashtonx86/mocker/internal/data"
 	"github.com/ashtonx86/mocker/internal/entities"
 	"github.com/ashtonx86/mocker/internal/errs"
+	"github.com/ashtonx86/mocker/internal/logging"
 	"github.com/ashtonx86/mocker/internal/schemas"
+	"github.com/ashtonx86/mocker/internal/utils"
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+func GetCurrentUser(c *fiber.Ctx) *entities.User {
+	user, ok := c.Locals("user").(*entities.User)
+	if !ok {
+		logging.Log(slog.LevelError, c, "Expected *entities.User", "obtained_user", user)
+		return nil
+	}
+	return user
+}
 
 func CreateUser(ctx context.Context, db *sql.DB, userData schemas.UserCreateRequest) (*entities.User, error) {
 	if userData.Password != userData.ConfirmPassword {
@@ -71,21 +84,34 @@ func GetUser(ctx context.Context, db *sql.DB, req schemas.UserFetchRequest) (*en
 		email        string
 		passwordHash string
 
-		createdAt time.Time
-		updatedAt time.Time
+		createdAtStr string
+		updatedAtStr string 
 	)
-	err := row.Scan(&id, &name, &email, &passwordHash, &createdAt, &updatedAt)
+	err := row.Scan(&id, &name, &email, &passwordHash, &createdAtStr, &updatedAtStr)
 	err = data.SQLiteErrorComparator(err)
 
-	var e errs.Error
-	if err != nil{
-		switch e.Code {
-		case errs.ErrInternalFailure:
-			return nil, errs.NewError(fmt.Errorf("failed to fetch :: %w", err), errs.DataErrorType, errs.ErrInternalFailure)
-		case errs.ErrNotFound:
-			return nil, errs.NewError(fmt.Errorf("record not found :: %w", err), errs.DataErrorType, errs.ErrNotFound)
+	if err != nil {
+		var e errs.Error
+
+		if errors.As(err, &e) {
+			switch e.Code {
+			case errs.ErrInternalFailure:
+				return nil, errs.NewError(fmt.Errorf("failed to fetch :: %w", err), errs.DataErrorType, errs.ErrInternalFailure)
+			case errs.ErrNotFound:
+				return nil, errs.NewError(fmt.Errorf("record not found :: %w", err), errs.DataErrorType, errs.ErrNotFound)
+			}
+			return nil, err
 		}
-		return nil, err
+	}
+
+	createdAt, err := utils.ParseTime(createdAtStr)
+	if err != nil {
+		return nil, errs.NewError(err, errs.DataErrorType, errs.ErrInternalFailure)
+	}
+
+	updatedAt, err := utils.ParseTime(updatedAtStr)
+	if err != nil {
+		return nil, errs.NewError(err, errs.DataErrorType, errs.ErrInternalFailure)
 	}
 
 	user := entities.User{
@@ -94,8 +120,8 @@ func GetUser(ctx context.Context, db *sql.DB, req schemas.UserFetchRequest) (*en
 		Email:        email,
 		PasswordHash: passwordHash,
 
-		CreatedAt:     createdAt,
-		LastUpdatedAt: updatedAt,
+		CreatedAt:     *createdAt,
+		LastUpdatedAt: *updatedAt,
 	}
 
 	return &user, nil

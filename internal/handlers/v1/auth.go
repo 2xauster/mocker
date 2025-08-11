@@ -12,6 +12,7 @@ import (
 	"github.com/ashtonx86/mocker/internal/schemas"
 	"github.com/ashtonx86/mocker/internal/supervisor"
 	"github.com/gofiber/fiber/v2"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const TIMEOUT = 40 * time.Second
@@ -142,6 +143,11 @@ func (h *AuthHandler) handleGETAccessToken(c *fiber.Ctx) error {
 				return c.Status(fiber.StatusInternalServerError).JSON(schemas.NewErrorAPIResponse(err, "Internal failure"))
 			}
 		}
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(schemas.NewAPIResponse(false, nil, "Wrong credentials"))
 	}
 
 	token, err := auth.GenerateJWT(user.ID)
