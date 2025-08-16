@@ -7,7 +7,7 @@ type MockCreateRequest struct {
 	
 	Questions []MockQuestionSchema `json:"questions" validate:"required,min=1"`
 
-	AuthorID string `json:"author_id" validate:"required,min=1"`
+	AuthorID string `json:"author_id"`
 }
 
 type MockQuestionSchema struct {

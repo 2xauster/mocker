@@ -22,7 +22,7 @@ func GenerateJWT(userID string) (string, error) {
 	secretKey := getSecretKey()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"iss": "mocker-auth",
-		"sub": userID,
+		"id": userID,
 		"iat": time.Now().Unix(),
 	})
 

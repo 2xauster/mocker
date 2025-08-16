@@ -93,18 +93,20 @@ func New(config Config) fiber.Handler {
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
 		t, claims, err := VerifyJWT(tokenStr)
+
+
 		var jwtErr errs.Error
 		if err != nil && errors.As(err, &jwtErr) {
 			return c.Status(fiber.StatusUnauthorized).JSON(schemas.NewErrorAPIResponse(err, "Unauthorized"))
 		}
-		if t == nil {
+		if t == nil {	
 			return cfg.Unauthorized(c)
 		}	
 		if !t.Valid {
 			return cfg.Unauthorized(c)
 		}
 
-		id, ok := claims["sub"].(string)
+		id, ok := claims["id"].(string)
 		if !ok {
 			return c.Status(fiber.StatusInternalServerError).JSON(schemas.NewErrorAPIResponse(
 				errors.New("missing 'id' in token claims"),
@@ -122,9 +124,8 @@ func New(config Config) fiber.Handler {
 				return c.Status(fiber.StatusNotFound).JSON(schemas.NewErrorAPIResponse(err, "User not found"))
 			}
 			return c.Status(fiber.StatusInternalServerError).JSON(schemas.NewErrorAPIResponse(err, "Failed to fetch user"))
-		}
-
-		c.Locals("user", &user)
+		}	
+		c.Locals("user", user)
 		return c.Next()
 	}
 }

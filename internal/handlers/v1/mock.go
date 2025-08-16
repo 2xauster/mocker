@@ -35,13 +35,13 @@ func NewMockHandler(su *supervisor.Supervisor) *MockHandler {
 
 func (h *MockHandler) MapRoutes(router *fiber.Group) {
 	router.Post("/", h.handlePOST) 
-	// router.Get("/:id", h.handleGET)
+	router.Get("/:id", h.handleGET)
 }
 
 func (h *MockHandler) handlePOST(c *fiber.Ctx) error {
 	user := auth.GetCurrentUser(c)
 
-	if user != nil {
+	if user == nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
@@ -53,6 +53,8 @@ func (h *MockHandler) handlePOST(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(schemas.NewErrorAPIResponse(err, "Bad request"))
 	}
 
+	req.AuthorID = user.ID 
+	
 	ctx, cancel := context.WithTimeout(context.Background(), MOCK_TIMEOUT)
 	defer cancel()
 
@@ -77,30 +79,30 @@ func (h *MockHandler) handlePOST(c *fiber.Ctx) error {
 	return c.JSON(schemas.NewAPIResponse(true, entity, ""))
 }
 
-// func (h *MockHandler) handleGET(c *fiber.Ctx) error {
-// 	mockID := c.Params("id")
-// 	if mockID == "" {
-// 		return c.Status(fiber.StatusBadRequest).JSON(schemas.NewErrorAPIResponse(errors.New("missing mock ID"), "Bad request"))
-// 	}
+func (h *MockHandler) handleGET(c *fiber.Ctx) error {
+	mockID := c.Params("id")
+	if mockID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(schemas.NewErrorAPIResponse(errors.New("missing mock ID"), "Bad request"))
+	}
 
-// 	ctx, cancel := context.WithTimeout(context.Background(), MOCK_TIMEOUT)
-// 	defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), MOCK_TIMEOUT)
+	defer cancel()
 
-// 	entity, err := mock.GetMockByID(ctx, h.SQLite.DB, mockID)
-// 	if err != nil {
-// 		var e errs.Error
-// 		if errors.As(err, &e) {
-// 			slog.Error("[pkg handlers : mock.go : func handleGET] Failed to fetch mock", "error", err)
+	entity, err := mock.GetMock(ctx, h.SQLite.DB, mockID)
+	if err != nil {
+		var e errs.Error
+		if errors.As(err, &e) {
+			slog.Error("[pkg handlers : mock.go : func handleGET] Failed to fetch mock", "error", err)
 
-// 			switch e.Code {
-// 			case errs.ErrNotFound:
-// 				return c.Status(fiber.StatusNotFound).JSON(schemas.NewErrorAPIResponse(err, "Not found"))
-// 			case errs.ErrInternalFailure:
-// 				return c.Status(fiber.StatusInternalServerError).JSON(schemas.NewErrorAPIResponse(err, "Internal failure"))
-// 			}
-// 		}
-// 		return c.Status(fiber.StatusInternalServerError).JSON(schemas.NewErrorAPIResponse(err, "Unknown error"))
-// 	}
+			switch e.Code {
+			case errs.ErrNotFound:
+				return c.Status(fiber.StatusNotFound).JSON(schemas.NewErrorAPIResponse(err, "Not found"))
+			case errs.ErrInternalFailure:
+				return c.Status(fiber.StatusInternalServerError).JSON(schemas.NewErrorAPIResponse(err, "Internal failure"))
+			}
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(schemas.NewErrorAPIResponse(err, "Unknown error"))
+	}
 
-// 	return c.JSON(schemas.NewAPIResponse(true, entity, ""))
-// }
+	return c.JSON(schemas.NewAPIResponse(true, entity, ""))
+}

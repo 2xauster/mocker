@@ -17,7 +17,7 @@ type MockQuestion struct {
 	ID              string    `type:"TEXT" cnstr:"PRIMARY KEY" json:"id"`
 	Problem         string    `type:"TEXT" cnstr:"NOT NULL" json:"problem"`
 	Points          int       `type:"NUMBER" cnstr:"NOT NULL" json:"points"`
-	CorrectOptionID string    `type:"TEXT" cnstr:"NOT NULL" ref:"MockOption(ID)" json:"correct_option_id"`
+	CorrectOptionID string    `type:"TEXT" cnstr:"NOT NULL" ref:"MockOption(ID)" json:"correct_option_id,omitempty"`
 	MockID          string    `type:"TEXT" cnstr:"NOT NULL" ref:"Mock(ID)" json:"mock_id"`
 	CreatedAt       time.Time `type:"TEXT" cnstr:"NOT NULL" json:"created_at"`
 	LastUpdatedAt   time.Time `type:"TEXT" cnstr:"NOT NULL" json:"last_updated_at"`
