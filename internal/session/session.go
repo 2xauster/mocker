@@ -8,6 +8,7 @@ type Session struct {
 	UserID string `json:"user_id"`
 
 	TTL       int `json:"ttl"`
-
+	Answers   map[string]string // [K : questionID] [V : optionID/answerID]
+	
 	CreatedAt time.Time `json:"created_at"`
 }

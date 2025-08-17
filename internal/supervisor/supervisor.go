@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"reflect"
 	"sync"
 	"time"
 
 	"github.com/ashtonx86/mocker/internal/data"
 	"github.com/ashtonx86/mocker/internal/entities"
+	"github.com/ashtonx86/mocker/internal/session"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -17,6 +19,7 @@ import (
 // Manage explicitly defined dependencies.
 type Supervisor struct {
 	SQLite *data.SQLite
+	SessionManager *session.SessionManager
 }
 
 // Initialize supervisor dependencies explicitly.
@@ -26,8 +29,17 @@ func New(ctx context.Context) (*Supervisor, error) {
 		return nil, fmt.Errorf("[pkg supervisor : func New] sqlite init failed :: %w", err)
 	}
 
+	connString := os.Getenv("REDIS_CONN_STRING")
+	redis, err := data.NewRedis(connString)
+	if err != nil {
+		return nil, err 
+	}
+
+	sessionManagr := session.NewSessionManager(sqlite.DB, redis)
+
 	return &Supervisor{
 		SQLite: sqlite,
+		SessionManager: sessionManagr,
 	}, nil
 }
 

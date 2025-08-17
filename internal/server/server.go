@@ -14,6 +14,7 @@ var ProtectedRoutes = []string{
 	"/api/v1/auth/protected",
 
 	"/api/v1/mock",
+	"/api/v1/session",
 }
 
 type WebServer struct {

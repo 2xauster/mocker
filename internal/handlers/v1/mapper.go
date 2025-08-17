@@ -13,4 +13,7 @@ func MapV1Handlers(app *fiber.App, su *supervisor.Supervisor) {
 
 	mockHandler := NewMockHandler(su)
 	mockHandler.MapRoutes(router.Group("/mock").(*fiber.Group))
+
+	sessionHandler := NewSessionHandler(su)
+	sessionHandler.MapRoutes(router.Group("/session").(*fiber.Group))
 }
